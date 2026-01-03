@@ -5,13 +5,33 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.error("Missing Supabase Environment Variables!");
+  if (typeof window !== 'undefined') {
+    document.body.innerHTML = `
+      <div style="background:#000; color:#fff; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:monospace; padding:20px; text-align:center;">
+        <h1 style="color:#ff3333; font-size:24px; margin-bottom:20px;">DEPLOYMENT CONFIGURATION ERROR</h1>
+        <p>Supabase Environment Variables are missing.</p>
+        <div style="margin-top:20px; padding:15px; border:1px solid #333; background:#111; border-radius:8px; text-align:left;">
+             <p style="margin:5px 0;"><strong>VITE_SUPABASE_URL:</strong> ${SUPABASE_URL ? '✅ Loaded' : '❌ Missing'}</p>
+             <p style="margin:5px 0;"><strong>VITE_SUPABASE_PUBLISHABLE_KEY:</strong> ${SUPABASE_PUBLISHABLE_KEY ? '✅ Loaded' : '❌ Missing'}</p>
+        </div>
+        <p style="margin-top:30px; color:#888;">Go to Vercel Settings > Environment Variables to fix this.</p>
+      </div>
+    `;
+  }
+}
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  }
-});
+export const supabase = createClient<Database>(
+  SUPABASE_URL || 'https://placeholder.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY || 'placeholder',
+  {
+    auth: {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    }
+  });
