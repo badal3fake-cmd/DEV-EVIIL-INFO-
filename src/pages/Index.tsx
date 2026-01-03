@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Fingerprint, Shield, Zap, Phone, Car, Send } from "lucide-react";
 import { PhoneSearch } from "@/components/PhoneSearch";
 import { ResultsDisplay } from "@/components/ResultsDisplay";
@@ -26,9 +26,109 @@ const Index = () => {
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [queriedNumber, setQueriedNumber] = useState("");
   const [queriedVehicle, setQueriedVehicle] = useState("");
+  const [clientIp, setClientIp] = useState<string | null>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    // Fetch client IP on mount
+    const fetchIp = async () => {
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        setClientIp(data.ip);
+        console.log("Client IP:", data.ip);
+      } catch (e) {
+        console.error("Failed to fetch IP", e);
+      }
+    };
+    fetchIp();
+  }, []);
+
+  const checkLimit = async (): Promise<boolean> => {
+    if (!clientIp) return true; // Fail open if IP lookup fails, or block? Let's fail open for better UX if IP service is down, or maybe block. User said "work through ip", so if no IP, maybe can't track. use Fail Open for now but warn.
+
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase
+        .from('ip_usage')
+        .select('*')
+        .eq('ip_address', clientIp)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "Row not found"
+        console.error("Error checking limit:", error);
+        return true; // Let them pass if DB error to avoid blocking valid users during outage
+      }
+
+      if (!data) {
+        // No record yet, user is fine
+        return true;
+      }
+
+      // Check dates
+      if (data.last_reset_date !== today) {
+        // New day, reset logic will happen during increment, so allow.
+        return true;
+      }
+
+      if (data.search_count >= 3) {
+        toast({
+          title: "Daily Limit Reached",
+          description: "You have reached your daily limit of 3 searches.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error(e);
+      return true;
+    }
+  };
+
+  const incrementLimit = async () => {
+    if (!clientIp) return;
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase
+        .from('ip_usage')
+        .select('*')
+        .eq('ip_address', clientIp)
+        .single();
+
+      if (!data) {
+        // Insert new
+        await supabase.from('ip_usage').insert({
+          ip_address: clientIp,
+          search_count: 1,
+          last_reset_date: today
+        });
+      } else {
+        // Update
+        const isNewDay = data.last_reset_date !== today;
+        const newCount = isNewDay ? 1 : data.search_count + 1;
+        
+        await supabase
+          .from('ip_usage')
+          .update({
+            search_count: newCount,
+            last_reset_date: today
+          })
+          .eq('ip_address', clientIp);
+      }
+    } catch (e) {
+      console.error("Failed to increment limit", e);
+    }
+  };
+
   const handleSearch = async (phoneNumber: string) => {
+    // 1. Check limit
+    const allowed = await checkLimit();
+    if (!allowed) return;
+
     setIsLoading(true);
     setError(null);
     setResults(null);
@@ -43,6 +143,10 @@ const Index = () => {
       if (data.error) throw new Error(data.error);
 
       setResults(data);
+      
+      // 2. Increment limit on success
+      await incrementLimit();
+      
       toast({
         title: "Scan Complete",
         description: `Found ${data.result_count || 0} records for this number.`,
@@ -61,6 +165,10 @@ const Index = () => {
   };
 
   const handleVehicleSearch = async (vehicleNumber: string) => {
+    // 1. Check limit
+    const allowed = await checkLimit();
+    if (!allowed) return;
+
     setIsVehicleLoading(true);
     setVehicleError(null);
     setVehicleData(null);
@@ -89,6 +197,10 @@ const Index = () => {
       }
 
       setVehicleData(data);
+      
+      // 2. Increment limit on success
+      await incrementLimit();
+
       toast({
         title: "Registry Match Found",
         description: "Vehicle information retrieved successfully.",
