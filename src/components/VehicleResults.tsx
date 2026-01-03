@@ -1,9 +1,25 @@
 import { Car, User, Calendar, Droplets, ShieldCheck, Info, MapPin, Send } from "lucide-react";
 
+export interface VehicleDetails {
+    [key: string]: string | undefined;
+}
+
+export interface VehicleData {
+    status: string;
+    details?: VehicleDetails;
+}
+
 interface VehicleResultsProps {
-    data: any | null;
+    data: VehicleData | null;
     error: string | null;
     registrationNumber: string;
+}
+
+interface InfoItemProps {
+    icon: React.ElementType;
+    label: string;
+    value?: string;
+    color?: string;
 }
 
 export const VehicleResults = ({ data, error, registrationNumber }: VehicleResultsProps) => {
@@ -22,7 +38,7 @@ export const VehicleResults = ({ data, error, registrationNumber }: VehicleResul
     const details = data.details || {};
 
     // Helper to render info items matching the photo style
-    const InfoItem = ({ icon: Icon, label, value, color = "text-primary" }: any) => (
+    const InfoItem = ({ icon: Icon, label, value, color = "text-primary" }: InfoItemProps) => (
         <div className="flex items-center gap-4 p-5 rounded-2xl bg-[#0F172A]/40 border border-white/5 hover:border-primary/20 transition-all duration-300 group">
             <div className={`p-3 rounded-xl bg-[#1E293B]/50 border border-white/5 ${color} group-hover:scale-110 transition-transform`}>
                 <Icon className="w-5 h-5" />

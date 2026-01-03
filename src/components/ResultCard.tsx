@@ -18,7 +18,7 @@ interface ResultCardProps {
 
 const InfoRow = ({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) => {
   if (!value || value === "N/A") return null;
-  
+
   return (
     <div className="flex items-start gap-3 py-2 border-b border-border/50 last:border-0 animate-slide-in" style={{ animationDelay: `${Math.random() * 0.3}s` }}>
       <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -39,7 +39,7 @@ export const ResultCard = ({ result, index }: ResultCardProps) => {
   };
 
   return (
-    <div 
+    <div
       className="card-gradient border-glow rounded-xl p-6 animate-fade-in"
       style={{ animationDelay: `${index * 0.1}s` }}
     >
@@ -60,18 +60,33 @@ export const ResultCard = ({ result, index }: ResultCardProps) => {
         <InfoRow icon={MapPin} label="Address" value={formatAddress() || ""} />
         <InfoRow icon={Building} label="Carrier" value={result.carrier || ""} />
         <InfoRow icon={Phone} label="Line Type" value={result.type || ""} />
-        
+
         {/* Display any additional fields */}
         {Object.entries(result).map(([key, value]) => {
           if (['name', 'address', 'city', 'state', 'zip', 'carrier', 'type'].includes(key)) return null;
-          if (!value || typeof value === 'object') return null;
-          
+
+          if (typeof value === 'object' && value !== null) {
+            return (
+              <div key={key} className="flex flex-col gap-1 py-2 border-b border-border/50 animate-slide-in">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-2">
+                  <Hash className="w-3 h-3 text-primary/50" />
+                  {key.replace(/_/g, ' ')}
+                </p>
+                <pre className="text-[10px] text-primary/90 bg-primary/5 border border-primary/10 p-2 rounded-lg overflow-x-auto font-mono">
+                  {JSON.stringify(value, null, 2)}
+                </pre>
+              </div>
+            )
+          }
+
+          if (!value) return null;
+
           return (
-            <InfoRow 
-              key={key} 
-              icon={Hash} 
-              label={key.replace(/_/g, ' ').toUpperCase()} 
-              value={String(value)} 
+            <InfoRow
+              key={key}
+              icon={Hash}
+              label={key.replace(/_/g, ' ').toUpperCase()}
+              value={String(value)}
             />
           );
         })}

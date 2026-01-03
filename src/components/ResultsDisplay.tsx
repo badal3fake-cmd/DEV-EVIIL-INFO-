@@ -12,11 +12,12 @@ interface ApiResponse {
 
 interface ResultsDisplayProps {
   data: ApiResponse | null;
+  linkedData?: ApiResponse | null;
   error: string | null;
   queriedNumber: string;
 }
 
-export const ResultsDisplay = ({ data, error, queriedNumber }: ResultsDisplayProps) => {
+export const ResultsDisplay = ({ data, linkedData, error, queriedNumber }: ResultsDisplayProps) => {
   if (error) {
     return (
       <div className="w-full max-w-3xl mx-auto mt-8 animate-fade-in">
@@ -35,6 +36,7 @@ export const ResultsDisplay = ({ data, error, queriedNumber }: ResultsDisplayPro
 
   const results = data.result || [];
   const resultCount = data.result_count || 0;
+  const linkedResults = linkedData?.result || [];
 
   return (
     <div className="w-full max-w-3xl mx-auto mt-8 space-y-6 animate-fade-in">
@@ -71,6 +73,27 @@ export const ResultsDisplay = ({ data, error, queriedNumber }: ResultsDisplayPro
           <p className="text-muted-foreground">No detailed records available for this number.</p>
         </div>
       )}
+
+      {/* Linked Identity Section */}
+      {linkedResults.length > 0 && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="flex items-center gap-3 mb-4 mt-8 px-2">
+            <div className="h-px bg-primary/20 flex-1"></div>
+            <span className="text-xs font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+              <Send className="w-3 h-3 rotate-45" />
+              Linked Intelligence
+            </span>
+            <div className="h-px bg-primary/20 flex-1"></div>
+          </div>
+
+          <div className="grid gap-4">
+            {linkedResults.map((result, index) => (
+              <ResultCard key={`linked-${index}`} result={result} index={index} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Telegram Community Links */}
       <div className="card-gradient border-glow rounded-xl p-6 flex flex-col items-center justify-center gap-4 text-center">
         <p className="text-sm font-mono text-muted-foreground uppercase tracking-widest">Join our Community</p>

@@ -8,9 +8,10 @@ create table if not exists public.ip_usage (
 -- Enable Row Level Security (RLS)
 alter table public.ip_usage enable row level security;
 
--- Create a policy to allow anyone (anon) to select their own IP data (technically they can see any if they know the IP, but for now we allow public read for logic)
--- Actually, for simplicity in this frontend-only logic without auth, we allow the anon key to perform operations.
+-- Drop policy if it exists to prevent errors when re-running
+drop policy if exists "Allow anonymous access to ip_usage" on public.ip_usage;
 
+-- Create a policy to allow anyone (anon) to select their own IP data
 create policy "Allow anonymous access to ip_usage"
 on public.ip_usage
 for all
