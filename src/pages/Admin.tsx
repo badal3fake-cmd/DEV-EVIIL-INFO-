@@ -5,6 +5,62 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogOut, Fingerprint, Eye, EyeOff, ShieldCheck } from "lucide-react";
 
+const Fake404 = () => {
+    return (
+        <div style={{
+            fontFamily: '-apple-system, BlinkMacSystemFont, Roboto, "Segoe UI", "Fira Sans", Avenir, "Helvetica Neue", "Lucida Grande", sans-serif',
+            height: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#fff',
+            color: '#000'
+        }}>
+            <div style={{
+                border: '1px solid #eaeaea',
+                borderRadius: '5px',
+                padding: '24px',
+                width: '400px',
+                maxWidth: '90vw',
+                marginBottom: '24px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                textAlign: 'left'
+            }}>
+                <h1 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 16px 0', color: '#000' }}>404: NOT_FOUND</h1>
+                <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#444' }}>
+                    <p style={{ margin: '0 0 8px 0' }}>Code: <code style={{ fontFamily: 'Menlo, Monaco, Lucida Console, monospace', color: '#000', fontSize: '13px' }}>NOT_FOUND</code></p>
+                    <p style={{ margin: 0 }}>ID: <code style={{ fontFamily: 'Menlo, Monaco, Lucida Console, monospace', color: '#000', fontSize: '13px' }}>bom1::8r5xr-{Date.now().toString(36)}-{Math.random().toString(16).substr(2, 9)}</code></p>
+                </div>
+            </div>
+
+            <a
+                href="https://vercel.com/docs/errors/NOT_FOUND"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                    display: 'block',
+                    width: '400px',
+                    maxWidth: '90vw',
+                    padding: '12px 0',
+                    textAlign: 'center',
+                    border: '1px solid #0070f3',
+                    borderRadius: '5px',
+                    color: '#0070f3',
+                    textDecoration: 'none',
+                    fontSize: '13px',
+                    transition: 'all 0.2s ease',
+                    backgroundColor: 'transparent'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(0,112,243,0.05)' }}
+                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+            >
+                Read our documentation to learn more about this error.
+            </a>
+        </div>
+    );
+};
+
 const Admin = () => {
     interface UserProfile {
         ip_address: string;
@@ -32,6 +88,16 @@ const Admin = () => {
         reason: string | null;
     }
 
+    interface WhitelistEntry {
+        email: string;
+        created_at: string;
+    }
+
+    interface AuthorizedUsernameEntry {
+        username: string;
+        created_at: string;
+    }
+
     const [stats, setStats] = useState({ totalUsers: 0, activeToday: 0 });
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -39,7 +105,11 @@ const Admin = () => {
     const [historySearchTerm, setHistorySearchTerm] = useState("");
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
     const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
+    const [whitelist, setWhitelist] = useState<WhitelistEntry[]>([]);
+    const [authorizedUsernames, setAuthorizedUsernames] = useState<AuthorizedUsernameEntry[]>([]);
+    const [adminInput, setAdminInput] = useState("");
     const [blacklistInput, setBlacklistInput] = useState("");
+    const [usernameInput, setUsernameInput] = useState("");
     const [blacklistType, setBlacklistType] = useState<'phone' | 'vehicle'>('phone');
     const [isLoading, setIsLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -47,34 +117,119 @@ const Admin = () => {
     const [loginPassword, setLoginPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
+    const [clientIp, setClientIp] = useState<string | null>(null);
+    const [isIdentityVerified, setIsIdentityVerified] = useState<boolean | null>(null);
     const { toast } = useToast();
 
     useEffect(() => {
+        const fetchIp = async () => {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                setClientIp(data.ip);
+            } catch (e) {
+                console.error("Failed to fetch IP", e);
+            }
+        };
+        fetchIp();
+    }, []);
+
+    useEffect(() => {
         const checkAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user?.email === 'devil01hzb@gmail.com') {
-                setIsAuthenticated(true);
-            } else {
-                setIsAuthenticated(false);
+            // 0. Initial State Check
+            // if (!clientIp) return; 
+
+
+
+            if (!clientIp) return;
+
+            // 1. Verify Identity Logic FIRST (Do we show 404 or Login?)
+            try {
+                // Get the username linked to this IP
+                const { data: userData, error: userError } = await supabase
+                    .from('ip_usage')
+                    .select('username')
+                    .eq('ip_address', clientIp)
+                    .single();
+
+                if (userError || !userData || !userData.username) {
+                    console.warn(`Stealth Protocol: No identity found for IP. Showing Decoy.`);
+                    setIsIdentityVerified(false);
+                    setIsAuthenticated(false);
+                    return;
+                }
+
+                // Check if this username is in the Authorized Usernames list
+                const { data: authData, error: authError } = await supabase
+                    .from('authorized_usernames')
+                    .select('username')
+                    .eq('username', userData.username)
+                    .single();
+
+                // Fallback for initial setup: explicitly allow 'mehta' if table is empty or missing
+                // This ensures you don't lock yourself out while setting up the DB
+                const isHardcodedMaster = userData.username === 'mehta';
+
+                if (authData || isHardcodedMaster) {
+                    // Identity is GOOD
+                    setIsIdentityVerified(true);
+                } else {
+                    console.warn(`Stealth Protocol: Identity '${userData.username}' is not in authorized list. Showing Decoy.`);
+                    setIsIdentityVerified(false);
+                    setIsAuthenticated(false);
+                    return;
+                }
+
+                // 2. Now Check Active Session (Do we show Login or Dashboard?)
+                const { data: { session } } = await supabase.auth.getSession();
+
+                if (!session?.user?.email) {
+                    setIsAuthenticated(false);
+                    return;
+                }
+
+                const email = session.user.email?.toLowerCase();
+                if (email === 'devil01hzb@gmail.com') {
+                    setIsAuthenticated(true);
+                } else {
+                    console.warn(`Auth Session Mismatch: ${email}`);
+                    setIsAuthenticated(false);
+                }
+
+            } catch (err) {
+                console.error("Auth check failed:", err);
+                setIsIdentityVerified(false); // Default to decoy on error
             }
         };
 
-        checkAuth();
+        if (clientIp) {
+            checkAuth();
+        }
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user?.email === 'devil01hzb@gmail.com') {
-                setIsAuthenticated(true);
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (!session?.user?.email) {
+                setIsAuthenticated(false);
+                return;
+            }
+            const email = session.user.email?.toLowerCase();
+            console.log("Auth state change detected for:", email);
+
+            if (email === 'devil01hzb@gmail.com') {
+                // We re-run full checkAuth to be safe, but tentatively allow if IP check passes
+                if (clientIp) checkAuth();
             } else {
                 setIsAuthenticated(false);
             }
         });
 
         return () => subscription.unsubscribe();
-    }, []);
+    }, [clientIp]);
 
     useEffect(() => {
         fetchAdminData();
         fetchHistory();
+        fetchWhitelist();
+        fetchAuthorizedUsernames();
 
         const histChannel = supabase
             .channel('global_intelligence')
@@ -113,9 +268,31 @@ const Admin = () => {
             )
             .subscribe();
 
+        // 3. Subscribe to Whitelist updates
+        const whitelistChannel = supabase
+            .channel('whitelist_updates')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'admin_whitelist' },
+                () => fetchWhitelist()
+            )
+            .subscribe();
+
+        // 4. Subscribe to Authorized Usernames updates
+        const authorizedUsernamesChannel = supabase
+            .channel('authorized_usernames_updates')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'authorized_usernames' },
+                () => fetchAuthorizedUsernames()
+            )
+            .subscribe();
+
         return () => {
             supabase.removeChannel(histChannel);
             supabase.removeChannel(userChannel);
+            supabase.removeChannel(whitelistChannel);
+            supabase.removeChannel(authorizedUsernamesChannel);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -178,6 +355,38 @@ const Admin = () => {
         }
     }, []);
 
+    const fetchWhitelist = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('admin_whitelist')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                // If the table doesn't exist yet, just return empty to avoid breaking the UI
+                // console.log("Whitelist table likely missing", error); 
+                return;
+            }
+            setWhitelist(data || []);
+        } catch (e) {
+            console.error("Whitelist fetch error:", e);
+        }
+    }, []);
+
+    const fetchAuthorizedUsernames = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('authorized_usernames')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) return;
+            setAuthorizedUsernames(data || []);
+        } catch (e) {
+            console.error("Authorized usernames fetch error:", e);
+        }
+    }, []);
+
     const fetchHistory = useCallback(async () => {
         try {
             const { data, error } = await supabase
@@ -192,6 +401,43 @@ const Admin = () => {
             console.error("History fetch error:", e);
         }
     }, []);
+
+
+
+    const handleAddAuthorizedUsername = async () => {
+        if (!usernameInput.trim()) return;
+        try {
+            const { error } = await supabase
+                .from('authorized_usernames')
+                .insert({ username: usernameInput.trim() });
+
+            if (error) throw error;
+
+            toast({ title: "Access Granted", description: `Identity '${usernameInput}' added to Authorized Personnel.` });
+            setUsernameInput("");
+            fetchAuthorizedUsernames();
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Operation Failed", description: "Could not add authorized username.", variant: "destructive" });
+        }
+    };
+
+    const handleRemoveAuthorizedUsername = async (username: string) => {
+        try {
+            const { error } = await supabase
+                .from('authorized_usernames')
+                .delete()
+                .eq('username', username);
+
+            if (error) throw error;
+
+            toast({ title: "Access Revoked", description: `Identity '${username}' removed from Authorized Personnel.` });
+            fetchAuthorizedUsernames();
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Operation Failed", description: "Could not remove authorized username.", variant: "destructive" });
+        }
+    };
 
     const handleIncreaseLimit = async (ip: string, currentLimit: number = 3) => {
         try {
@@ -268,6 +514,42 @@ const Admin = () => {
         } catch (e) {
             console.error(e);
             toast({ title: "Update Failed", description: "Could not decrease user limit.", variant: "destructive" });
+        }
+    };
+
+    const handleIncrementUsage = async (ip: string, currentUsage: number) => {
+        try {
+            const newUsage = currentUsage + 1;
+            const { error } = await supabase
+                .from('ip_usage')
+                .update({ search_count: newUsage })
+                .eq('ip_address', ip);
+
+            if (error) throw error;
+
+            toast({ title: "Usage Increased", description: `User ${ip} usage set to ${newUsage}.` });
+            fetchAdminData();
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Update Failed", description: "Could not increase usage.", variant: "destructive" });
+        }
+    };
+
+    const handleDecrementUsage = async (ip: string, currentUsage: number) => {
+        try {
+            const newUsage = Math.max(0, currentUsage - 1);
+            const { error } = await supabase
+                .from('ip_usage')
+                .update({ search_count: newUsage })
+                .eq('ip_address', ip);
+
+            if (error) throw error;
+
+            toast({ title: "Usage Decreased", description: `User ${ip} usage set to ${newUsage}.` });
+            fetchAdminData();
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Update Failed", description: "Could not decrease usage.", variant: "destructive" });
         }
     };
 
@@ -357,13 +639,52 @@ const Admin = () => {
 
             if (error) throw error;
 
-            if (loginEmail !== 'devil01hzb@gmail.com') {
+            const normalizedEmail = loginEmail.toLowerCase().trim();
+
+            if (normalizedEmail !== 'devil01hzb@gmail.com') {
                 await supabase.auth.signOut();
-                toast({ title: "Authorization Denied", description: "This identity is not recognized as a Level 7 Administrator.", variant: "destructive" });
+                toast({
+                    title: "Authorization Denied",
+                    description: `RESTRICTED ACCESS: User '${normalizedEmail}' is not authorized. Only 'devil01hzb@gmail.com' is allowed.`,
+                    variant: "destructive"
+                });
                 return;
             }
 
-            toast({ title: "Authorization Successful", description: "Welcome back, Administrator." });
+            // Database Username Check
+            if (clientIp) {
+                const { data: userData } = await supabase
+                    .from('ip_usage')
+                    .select('username')
+                    .eq('ip_address', clientIp)
+                    .single();
+
+                if (userData?.username !== 'mehta') {
+                    await supabase.auth.signOut();
+                    toast({
+                        title: "Identity Protocol Violation",
+                        description: `ACCESS DENIED: Database identity '${userData?.username}' does not match authorized profile 'mehta'.`,
+                        variant: "destructive"
+                    });
+                    return;
+                }
+            } else {
+                toast({ title: "Network Error", description: "IP could not be verified. Access suspended.", variant: "destructive" });
+                return;
+            }
+
+
+            toast({ title: "Authorization Successful", description: "Welcome, Commander Mehta." });
+            return;
+
+            // STRICT LOCKDOWN: Reject everyone else
+            await supabase.auth.signOut();
+            toast({
+                title: "Authorization Denied",
+                description: `RESTRICTED ACCESS: User '${normalizedEmail}' is not authorized. Only 'devil01hzb@gmail.com' is allowed.`,
+                variant: "destructive"
+            });
+
         } catch (error) {
             const message = error instanceof Error ? error.message : "Invalid credentials provided.";
             toast({ title: "Access Denied", description: message, variant: "destructive" });
@@ -377,17 +698,23 @@ const Admin = () => {
         toast({ title: "Session Terminated", description: "You have been securely logged out." });
     };
 
-    if (isAuthenticated === null) {
+    // 1. Loading State
+    if (clientIp === null || (clientIp && isIdentityVerified === null)) {
         return (
-            <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono">
-                <div className="flex flex-col items-center gap-4">
-                    <Activity className="w-8 h-8 text-primary animate-spin" />
-                    <span className="text-[10px] uppercase tracking-[0.3em] text-primary animate-pulse">Initializing Authorization Gate...</span>
-                </div>
+            // Stealth Loading: Show nothing (or generic generic browser loader look) while checking
+            // This prevents "Initializing Authorization Gate" from tipping off intruders.
+            <div className="min-h-screen bg-white flex items-center justify-center">
+                {/* Optional: Mimic a slow page load or just stay blank */}
             </div>
         );
     }
 
+    // 2. Decoy State (Unauthorized Identity)
+    if (isIdentityVerified === false) {
+        return <Fake404 />;
+    }
+
+    // 3. Login State (Identity Verified, but not Authenticated)
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 font-mono">
@@ -421,7 +748,7 @@ const Admin = () => {
                                             value={loginEmail}
                                             onChange={(e) => setLoginEmail(e.target.value)}
                                             className="w-full bg-black/40 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-sm focus:outline-none focus:border-primary/50 transition-all text-white placeholder:text-white/10"
-                                            placeholder="administrator@eviil.platform"
+                                            placeholder="devil01hzb@gmail.com"
                                         />
                                     </div>
                                 </div>
@@ -500,27 +827,38 @@ const Admin = () => {
         <div className="min-h-screen bg-background text-foreground font-mono">
             {/* Admin Header */}
             <header className="border-b border-primary/20 bg-black/40 backdrop-blur-md sticky top-0 z-50">
-                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Lock className="w-5 h-5 text-primary animate-pulse" />
-                        <span className="font-bold tracking-tighter text-xl uppercase">
-                            Control <span className="text-primary italic">Center</span>
-                        </span>
+                <div className="container mx-auto px-4 h-auto py-4 md:h-16 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+                        <div className="flex items-center gap-3">
+                            <Lock className="w-5 h-5 text-primary animate-pulse" />
+                            <span className="font-bold tracking-tighter text-xl uppercase">
+                                Control <span className="text-primary italic">Center</span>
+                            </span>
+                        </div>
+                        {/* Mobile Logout (Visible only on small screens) */}
+                        <button
+                            onClick={handleLogout}
+                            className="md:hidden text-[9px] uppercase tracking-widest text-red-500 flex items-center gap-2"
+                        >
+                            <LogOut className="w-3 h-3" />
+                            Exit
+                        </button>
                     </div>
-                    <div className="flex items-center gap-3">
+
+                    <div className="flex items-center gap-2 flex-wrap justify-center md:justify-end w-full md:w-auto">
                         <button
                             onClick={handleGlobalUpgrade}
                             className="bg-primary/5 border border-primary/20 rounded-full px-3 py-1.5 text-[9px] uppercase font-bold tracking-widest hover:bg-primary/20 hover:border-primary/50 transition-all text-primary flex items-center gap-2"
                         >
                             <Shield className="w-3 h-3" />
-                            Global +1
+                            +1 Fuel
                         </button>
                         <button
                             onClick={handleGlobalDowngrade}
                             className="bg-orange-500/5 border border-orange-500/20 rounded-full px-3 py-1.5 text-[9px] uppercase font-bold tracking-widest hover:bg-orange-500/20 hover:border-orange-500/50 transition-all text-orange-500 flex items-center gap-2"
                         >
                             <ShieldAlert className="w-3 h-3 text-orange-500" />
-                            Global -1
+                            -1 Fuel
                         </button>
                         <button
                             onClick={handleGlobalReset}
@@ -529,20 +867,21 @@ const Admin = () => {
                             <Zap className="w-3 h-3 text-red-500" />
                             Reset
                         </button>
+                        <div className="h-4 w-px bg-white/10 hidden md:block mx-2"></div>
                         <button
                             onClick={fetchAdminData}
                             disabled={isLoading}
-                            className="text-[9px] uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2 border-l border-white/10 pl-4"
+                            className="text-[9px] uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2"
                         >
                             <Activity className={`w-3 h-3 ${isLoading ? 'animate-spin' : 'text-green-500'}`} />
                             {isLoading ? 'Sync' : 'Live'}
                         </button>
                         <button
                             onClick={handleLogout}
-                            className="text-[9px] uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors flex items-center gap-2 border-l border-white/10 pl-4 ml-2"
+                            className="hidden md:flex text-[9px] uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors items-center gap-2 ml-2"
                         >
                             <LogOut className="w-3 h-3" />
-                            Secure Exit
+                            Exit
                         </button>
                     </div>
                 </div>
@@ -575,20 +914,22 @@ const Admin = () => {
                 </div>
 
                 <Tabs defaultValue="operatives" className="w-full">
-                    <TabsList className="bg-black/40 border border-white/5 p-1 mb-6 self-start">
-                        <TabsTrigger value="operatives" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground uppercase text-[10px] font-bold tracking-widest px-6 py-2">
-                            <Users className="w-3.5 h-3.5 mr-2" />
-                            Operative Database
-                        </TabsTrigger>
-                        <TabsTrigger value="feed" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground uppercase text-[10px] font-bold tracking-widest px-6 py-2">
-                            <Globe className="w-3.5 h-3.5 mr-2" />
-                            Global Intelligence Feed
-                        </TabsTrigger>
-                        <TabsTrigger value="security" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground uppercase text-[10px] font-bold tracking-widest px-6 py-2">
-                            <ShieldOff className="w-3.5 h-3.5 mr-2" />
-                            System Security
-                        </TabsTrigger>
-                    </TabsList>
+                    <div className="overflow-x-auto pb-2 scrollbar-hide">
+                        <TabsList className="bg-black/40 border border-white/5 p-1 mb-6 inline-flex min-w-full md:min-w-0 md:self-start">
+                            <TabsTrigger value="operatives" className="flex-1 md:flex-none whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground uppercase text-[10px] font-bold tracking-widest px-6 py-2">
+                                <Users className="w-3.5 h-3.5 mr-2" />
+                                Operatives
+                            </TabsTrigger>
+                            <TabsTrigger value="feed" className="flex-1 md:flex-none whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground uppercase text-[10px] font-bold tracking-widest px-6 py-2">
+                                <Globe className="w-3.5 h-3.5 mr-2" />
+                                Intel Feed
+                            </TabsTrigger>
+                            <TabsTrigger value="security" className="flex-1 md:flex-none whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground uppercase text-[10px] font-bold tracking-widest px-6 py-2">
+                                <ShieldOff className="w-3.5 h-3.5 mr-2" />
+                                Security
+                            </TabsTrigger>
+                        </TabsList>
+                    </div>
 
                     <TabsContent value="operatives" className="space-y-6">
                         {/* User Table */}
@@ -616,7 +957,7 @@ const Admin = () => {
                                             <th className="px-6 py-4 font-bold tracking-widest">Identity</th>
                                             <th className="px-6 py-4 font-bold tracking-widest">Access Endpoint (IP)</th>
                                             <th className="px-6 py-4 font-bold tracking-widest text-center">Fuel Consumption</th>
-                                            <th className="px-6 py-4 font-bold tracking-widest text-center">Actions</th>
+                                            <th className="px-6 py-4 font-bold tracking-widest text-center">Fuel Consumption / Actions</th>
                                             <th className="px-6 py-4 font-bold tracking-widest text-right">Last Heartbeat</th>
                                         </tr>
                                     </thead>
@@ -671,6 +1012,20 @@ const Admin = () => {
                                                             className="bg-orange-500/10 border border-orange-500/30 rounded px-2 py-1 text-[8px] font-extrabold uppercase tracking-tight hover:bg-orange-500/30 transition-all text-orange-500"
                                                         >
                                                             Drain
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center justify-center gap-2 mt-1">
+                                                        <button
+                                                            onClick={() => handleIncrementUsage(user.ip_address, user.search_count || 0)}
+                                                            className="bg-red-500/10 border border-red-500/30 rounded px-2 py-1 text-[8px] font-extrabold uppercase tracking-tight hover:bg-red-500/30 transition-all text-red-500"
+                                                        >
+                                                            Force Use
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDecrementUsage(user.ip_address, user.search_count || 0)}
+                                                            className="bg-blue-500/10 border border-blue-500/30 rounded px-2 py-1 text-[8px] font-extrabold uppercase tracking-tight hover:bg-blue-500/30 transition-all text-blue-400"
+                                                        >
+                                                            Restore
                                                         </button>
                                                     </div>
                                                 </td>
@@ -789,6 +1144,52 @@ const Admin = () => {
                     </TabsContent>
 
                     <TabsContent value="security" className="space-y-6">
+                        {/* Authorized Users Management Section */}
+                        <div className="grid grid-cols-1 gap-6">
+                            {/* Authorized Usernames (Access Gate) */}
+                            <div className="card-gradient border-glow rounded-xl p-6 bg-black/40 md:col-span-2">
+                                <h3 className="text-sm font-bold uppercase tracking-widest mb-4 flex items-center gap-2 text-accent">
+                                    <Fingerprint className="w-4 h-4" />
+                                    Access Gate Identities
+                                </h3>
+                                <div className="flex gap-2 mb-4">
+                                    <input
+                                        placeholder="Add allowed username..."
+                                        value={usernameInput}
+                                        onChange={(e) => setUsernameInput(e.target.value)}
+                                        className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs focus:border-accent/50 outline-none"
+                                    />
+                                    <button
+                                        onClick={handleAddAuthorizedUsername}
+                                        className="px-4 py-2 bg-accent/10 border border-accent/20 rounded-lg text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/20 transition-colors"
+                                    >
+                                        Permit
+                                    </button>
+                                </div>
+                                <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                                    {authorizedUsernames.map((entry, i) => (
+                                        <div key={i} className="flex items-center justify-between p-2 rounded bg-white/5 border border-white/5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+                                                <span className="text-xs font-mono">{entry.username}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveAuthorizedUsername(entry.username)}
+                                                className="text-red-500 hover:text-red-400 p-1"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {authorizedUsernames.length === 0 && (
+                                        <div className="text-[10px] text-muted-foreground uppercase text-center py-4 border border-dashed border-white/10 rounded">
+                                            Only 'mehta' has implicit access
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Security Interdiction Interface */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Add Interdiction Card */}

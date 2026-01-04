@@ -19,7 +19,7 @@ export const PhoneSearch = ({ onSearch, isLoading }: PhoneSearchProps) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-xl mx-auto">
+    <form onSubmit={handleSubmit} className="w-full max-w-xl mx-auto space-y-4">
       <div className="relative">
         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
           <Phone className="w-5 h-5" />
@@ -29,28 +29,28 @@ export const PhoneSearch = ({ onSearch, isLoading }: PhoneSearchProps) => {
           placeholder="Enter phone number..."
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
-          className="pl-12 pr-32 h-14 text-lg border-glow bg-card/50 backdrop-blur-sm"
+          className="pl-12 h-14 text-lg border-glow bg-card/50 backdrop-blur-sm"
         />
-        <Button
-          type="submit"
-          variant="scan"
-          size="lg"
-          disabled={isLoading || !phoneNumber.trim()}
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-10"
-        >
-          {isLoading ? (
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
-              <span>Scanning</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Search className="w-4 h-4" />
-              <span>Investigate</span>
-            </div>
-          )}
-        </Button>
       </div>
+      <Button
+        type="submit"
+        variant="scan"
+        size="lg"
+        disabled={isLoading || !phoneNumber.trim()}
+        className="w-full h-12"
+      >
+        {isLoading ? (
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+            <span>Scanning</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Search className="w-4 h-4" />
+            <span>Investigate</span>
+          </div>
+        )}
+      </Button>
     </form>
   );
 };

@@ -143,4 +143,28 @@
   .border-glow {
     border: 1px solid hsl(175 80% 50% / 0.3);
   }
+
+  /* Advanced Animations */
+  .animate-glitch {
+    animation: glitch 1s linear infinite;
+  }
+
+  @keyframes glitch {
+    2%, 64% { transform: translate(2px,0) skew(0deg); }
+    4%, 60% { transform: translate(-2px,0) skew(0deg); }
+    62% { transform: translate(0,0) skew(5deg); }
+  }
+
+  .animate-blink {
+    animation: blink 0.5s step-end infinite alternate;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .matrix-bg {
+    background-image: linear-gradient(0deg, transparent 24%, rgba(34, 197, 94, .1) 25%, rgba(34, 197, 94, .1) 26%, transparent 27%, transparent 74%, rgba(34, 197, 94, .1) 75%, rgba(34, 197, 94, .1) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(34, 197, 94, .1) 25%, rgba(34, 197, 94, .1) 26%, transparent 27%, transparent 74%, rgba(34, 197, 94, .1) 75%, rgba(34, 197, 94, .1) 76%, transparent 77%, transparent);
+    background-size: 50px 50px;
+  }
 }

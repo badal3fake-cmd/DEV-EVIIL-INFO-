@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { UsernamePopup } from "@/components/UsernamePopup";
+import { InitializingPage } from "@/components/InitializingPage";
 
 interface ApiResponse {
   query?: {
@@ -20,6 +22,7 @@ interface ApiResponse {
 }
 
 const Index = () => {
+  const [isSystemReady, setIsSystemReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isVehicleLoading, setIsVehicleLoading] = useState(false);
   const [results, setResults] = useState<ApiResponse | null>(null);
@@ -574,39 +577,47 @@ const Index = () => {
     }
   };
 
+  if (!isSystemReady) {
+    return <InitializingPage onComplete={() => setIsSystemReady(true)} />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
+      <UsernamePopup />
       {/* Header */}
       <header className="border-b border-border/50 backdrop-blur-sm bg-background/50 sticky top-0 z-50">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
-              <Fingerprint className="w-6 h-6 text-primary" />
+        <div className="container mx-auto px-4 h-auto py-3 md:h-16 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
+                <Fingerprint className="w-6 h-6 text-primary" />
+              </div>
+              <span className="font-mono font-bold text-lg gradient-text">Intelligence Platform</span>
             </div>
-            <span className="font-mono font-bold text-lg gradient-text">Intelligence Platform</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="relative group overflow-hidden rounded-full bg-accent/5 border border-white/5 p-1 transition-all hover:border-primary/30">
+
+          <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+            <div className="relative group overflow-hidden rounded-full bg-accent/5 border border-white/5 p-1 transition-all hover:border-primary/30 flex-1 md:flex-none md:max-w-xs">
               <div className="flex items-center gap-2 pl-2 pr-3">
                 <User className="w-3.5 h-3.5 text-primary" />
                 <Input
                   placeholder="Identity (Username)"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="h-7 w-32 bg-transparent border-none text-[10px] font-mono focus-visible:ring-0 placeholder:text-muted-foreground/50 p-0"
+                  className="h-7 w-full md:w-32 bg-transparent border-none text-[10px] font-mono focus-visible:ring-0 placeholder:text-muted-foreground/50 p-0"
                 />
               </div>
               <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 whitespace-nowrap">
               <Zap className="w-3 h-3 text-primary" />
               <span className="text-xs font-mono font-bold text-primary">
                 CREDITS: {credits}/3
               </span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+            <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground font-mono">
               <Shield className="w-4 h-4 text-accent" />
-              <span className="hidden sm:inline">Secure Lookup</span>
+              <span>Secure Lookup</span>
             </div>
           </div>
         </div>
